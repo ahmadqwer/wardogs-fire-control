@@ -338,6 +338,7 @@
   <footer>
     <p>One unit on the map grid is 100 m, so x98 to x99 is 100 m. Distance here is flat map distance. A target well above or below you can land long or short; use Adjust fire to correct.</p>
     <p>Weapon limits are rough figures from the video. Method from <a href="https://www.youtube.com/watch?v=9X8U-eHCMgI" target="_blank" rel="noopener">SwoleBenji's mortar guide</a>. Fan-made, not affiliated with the developers. <a href="https://github.com/ahmadqwer/wardogs-fire-control" target="_blank" rel="noopener">Source on GitHub</a>.</p>
+    <p>Visits are counted with GoatCounter, which uses no cookies and doesn't track you across sites.</p>
   </footer>
 </div>
 
@@ -404,6 +405,16 @@ const store = {
 };
 
 let current = null;
+let counted = false;
+
+// One GoatCounter event per visit, the first time someone gets a solution from their own coordinates.
+function countUse() {
+  if (counted || !current) return;
+  const gc = window.goatcounter;
+  if (!gc || typeof gc.count !== 'function') return;
+  counted = true;
+  try { gc.count({ path: 'firing-solution', title: 'Firing solution calculated', event: true }); } catch (e) {}
+}
 
 function showRead(id, p, optional) {
   const el = $(id + '-read'), input = $(id);
@@ -547,7 +558,7 @@ function saveYou() {
 ['you', 'target', 'impact'].forEach(id => {
   const el = $(id);
   el.addEventListener('focus', () => el.select());
-  el.addEventListener('input', () => { if (id === 'you') saveYou(); render(); });
+  el.addEventListener('input', () => { if (id === 'you') saveYou(); render(); if (id !== 'impact') countUse(); });
   el.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -564,6 +575,7 @@ function saveYou() {
       $('target').value = pairText(pairs[1]);
       saveYou();
       render();
+      countUse();
       $('target').focus();
       return;
     }
@@ -605,5 +617,6 @@ $('copy').addEventListener('click', () => {
   render();
 })();
 </script>
+<script data-goatcounter="https://ahmadqwer.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>
