@@ -101,15 +101,6 @@
     text-transform: uppercase;
     color: var(--muted);
   }
-  .tag {
-    font: 500 12px/1 var(--f-label);
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--accent);
-    border: 1px dashed var(--accent);
-    border-radius: 999px;
-    padding: 4px 9px;
-  }
 
   .field { display: grid; gap: 5px; min-width: 0; }
   .field > label { font-weight: 600; font-size: 15px; }
@@ -260,7 +251,6 @@
       <section class="panel" aria-labelledby="coords-h">
         <div class="panel-head">
           <h2 id="coords-h" class="label">Coordinates</h2>
-          <span id="example-tag" class="tag">Example shot from the video</span>
         </div>
 
         <div class="field">
@@ -392,7 +382,6 @@ function reach(w, m) {
 /* core:end */
 
 const $ = id => document.getElementById(id);
-const EX_YOU = 'x98.43, y110.38', EX_TGT = 'x94.53, y109.03';
 const KEY_KEEP = 'wdfc.keep', KEY_YOU = 'wdfc.you';
 const fmt = n => Math.round(n).toLocaleString('en-US');
 const signed = (n, d = 2) => (n < 0 ? '−' : '+') + Math.abs(n).toFixed(d);
@@ -495,7 +484,7 @@ function renderAdjust(you, tgt, t) {
   const impText = $('impact').value.trim();
   const imp = parseCoord(impText);
   showRead('impact', imp, true);
-  $('used').placeholder = t ? String(Math.round(t.m)) : '413';
+  $('used').placeholder = t ? String(Math.round(t.m)) : '';
   if (!t || !imp) {
     out.innerHTML = '';
     return null;
@@ -525,7 +514,6 @@ function render() {
   const you = parseCoord(youV), tgt = parseCoord(tgtV);
   showRead('you', you);
   showRead('target', tgt);
-  $('example-tag').hidden = !(youV.trim() === EX_YOU && tgtV.trim() === EX_TGT);
 
   const t = you && tgt ? solve(you, tgt) : null;
   current = t;
@@ -612,9 +600,10 @@ $('copy').addEventListener('click', () => {
   const keep = store.get(KEY_KEEP) === '1';
   const savedYou = store.get(KEY_YOU);
   $('keep').checked = keep;
-  $('you').value = keep && savedYou ? savedYou : EX_YOU;
-  $('target').value = EX_TGT;
+  $('you').value = keep && savedYou ? savedYou : '';
+  $('target').value = '';
   render();
+  $($('you').value ? 'target' : 'you').focus();
 })();
 </script>
 <script data-goatcounter="https://ahmadqwer.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
