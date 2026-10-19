@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Paste your mortar and target map coordinates from Wardogs and get the exact RNG to dial, the compass heading, and fire corrections after a miss.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Wardogs Fire Control">
+<meta property="og:description" content="Paste your mortar and target map coordinates from Wardogs and get the exact RNG to dial, the compass heading, and fire corrections after a miss.">
+<meta property="og:url" content="https://ahmadqwer.github.io/wardogs-fire-control/">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%2211%22%20fill%3D%22none%22%20stroke%3D%22%23B04E18%22%20stroke-width%3D%223%22%2F%3E%3Cpath%20d%3D%22M16%201v9M16%2022v9M1%2016h9M22%2016h9%22%20stroke%3D%22%23B04E18%22%20stroke-width%3D%223%22%2F%3E%3Ccircle%20cx%3D%2216%22%20cy%3D%2216%22%20r%3D%222.5%22%20fill%3D%22%23B04E18%22%2F%3E%3C%2Fsvg%3E">
+<style>
+  :root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; font: 14px system-ui, -apple-system, "Segoe UI", sans-serif; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Wardogs Fire Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Saira+Stencil+One&display=swap">
+<style>
+  /* Layout: a fire-direction sheet. Coordinate entry on the left, the firing solution and a north-up plotting board on the right; one column on phones. */
+  :root {
+    --bg: #E3E6DD;
+    --surface: #F3F4EE;
+    --ink: #1C211A;
+    --muted: #59624F;
+    --line: #C2C8B9;
+    --accent: #B04E18;
+    --ok: #2C6F37;
+    --warn: #8C620A;
+    --bad: #A3322A;
+
+    --f-display: "Saira Stencil One", "Arial Black", Impact, sans-serif;
+    --f-body: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --f-label: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+    --f-data: "IBM Plex Mono", ui-monospace, Consolas, "Courier New", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131714; --surface: #1B201C; --ink: #E1E4D8; --muted: #949D8D; --line: #323A33;
+      --accent: #EE8A43; --ok: #72C27F; --warn: #DDB04C; --bad: #EF7466;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131714; --surface: #1B201C; --ink: #E1E4D8; --muted: #949D8D; --line: #323A33;
+    --accent: #EE8A43; --ok: #72C27F; --warn: #DDB04C; --bad: #EF7466;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 15px/1.5 var(--f-body);
+  }
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding-block: 28px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid;
+    gap: 22px;
+  }
+
+  .top { display: grid; gap: 6px; }
+  h1 {
+    margin: 0;
+    font: 400 clamp(30px, 6vw, 46px)/1 var(--f-display);
+    letter-spacing: .01em;
+    text-wrap: balance;
+  }
+  .lede { margin: 0; color: var(--muted); max-width: 62ch; }
+
+  .main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 780px) { .main { grid-template-columns: minmax(0, 1fr); } }
+  .col { display: grid; gap: 20px; min-width: 0; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px;
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+  }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .label {
+    margin: 0;
+    font: 600 13px/1.2 var(--f-label);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .tag {
+    font: 500 12px/1 var(--f-label);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px dashed var(--accent);
+    border-radius: 999px;
+    padding: 4px 9px;
+  }
+
+  .field { display: grid; gap: 5px; min-width: 0; }
+  .field > label { font-weight: 600; font-size: 15px; }
+  input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    font: 500 17px/1.2 var(--f-data);
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 11px 12px;
+  }
+  input[type="text"]::placeholder { color: var(--muted); opacity: .7; }
+  input[type="text"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  input[type="text"][aria-invalid="true"] { border-color: var(--bad); }
+  .read { margin: 0; min-height: 1.4em; font: 400 13px/1.4 var(--f-data); color: var(--muted); }
+  .read.err { color: var(--bad); font-family: var(--f-body); font-size: 14px; }
+
+  .check { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--muted); cursor: pointer; width: fit-content; }
+  .check input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); }
+  .check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tip { margin: 0; font-size: 14px; color: var(--muted); }
+  kbd {
+    font: 500 12px/1 var(--f-data);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 2px 5px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .row2 { display: grid; grid-template-columns: minmax(0, 1fr) 9.5em; gap: 12px; }
+  @media (max-width: 420px) { .row2 { grid-template-columns: minmax(0, 1fr); } }
+  .note { margin: 0; color: var(--muted); font-size: 14px; }
+  .adj-out { display: grid; gap: 4px; font-size: 15px; }
+  .adj-out p { margin: 0; }
+  .adj-out strong { font-family: var(--f-data); font-weight: 600; }
+  .adj-out .hit { color: var(--ok); font-weight: 600; }
+
+  /* Firing solution */
+  .readouts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ro {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 10px 14px 12px;
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .ro .k { font: 600 13px/1 var(--f-label); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .ro .v { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .ro .n { font: 400 clamp(40px, 8vw, 58px)/1.05 var(--f-display); font-variant-numeric: tabular-nums; }
+  .ro .u { font: 500 16px/1 var(--f-data); color: var(--muted); }
+  #rng { color: var(--accent); }
+  #card { color: var(--accent); font-weight: 600; }
+
+  .btn {
+    font: 600 13px/1 var(--f-label);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .reach { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .reach li {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .reach .w { font-weight: 600; }
+  .reach .lim { color: var(--muted); font: 400 13px/1 var(--f-data); margin-left: 6px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font: 600 13px/1 var(--f-label);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 4px 9px;
+    border-radius: 999px;
+    color: var(--ok);
+    background: color-mix(in srgb, var(--ok) 14%, transparent);
+  }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill[data-state="warn"] { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+  .pill[data-state="bad"] { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+  .pill[data-state="bad"]::before { border-radius: 1px; }
+  .pill[data-state="idle"] { color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent); }
+
+  .board { display: grid; justify-items: center; gap: 4px; }
+  #plot { width: 100%; max-width: 330px; height: auto; display: block; }
+  .board figcaption { font-size: 13px; color: var(--muted); }
+  #plot .ring { fill: none; stroke: var(--line); stroke-width: 1; }
+  #plot .axis { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; fill: none; }
+  #plot .tick { stroke: var(--muted); stroke-width: 1; fill: none; }
+  #plot .limit { fill: none; stroke: var(--warn); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  #plot .ring-l, #plot .limit-l {
+    font: 500 8.5px var(--f-data); fill: var(--muted);
+    stroke: var(--surface); stroke-width: 3px; paint-order: stroke; stroke-linejoin: round;
+  }
+  #plot .limit-l { fill: var(--warn); }
+  #plot .card-l { font: 600 11px var(--f-label); fill: var(--muted); letter-spacing: .05em; }
+  #plot .card-l.n { fill: var(--accent); }
+  #plot .los { stroke: var(--accent); stroke-width: 1.6; fill: none; }
+  #plot .tgt { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+  #plot .tgt-c { fill: var(--accent); stroke: none; }
+  #plot .imp { stroke: var(--warn); stroke-width: 2; fill: none; stroke-linecap: round; }
+  #plot .gun { fill: var(--ink); stroke: none; }
+  #plot .empty { font: 500 11px var(--f-body); fill: var(--muted); }
+
+  .work { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; font: 400 13px/1.45 var(--f-data); border-top: 1px solid var(--line); padding-top: 12px; }
+  .work dt { color: var(--muted); font-family: var(--f-label); font-size: 14px; letter-spacing: .04em; }
+  .work dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+  .howto { display: grid; gap: 10px; padding: 2px 4px; }
+  .howto ol { margin: 0; padding-left: 1.3em; display: grid; gap: 7px; max-width: 62ch; }
+  .howto li::marker { font-family: var(--f-data); color: var(--accent); font-weight: 600; }
+
+  footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 4px; max-width: 80ch; }
+  footer p { margin: 0; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .btn { transition: border-color .15s; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Wardogs Fire Control</h1>
+    <p class="lede">Paste the map coordinates of your mortar and of the target. You get the range to set on the RNG scale and the compass heading to turn to.</p>
+  </header>
+
+  <main class="main">
+    <div class="col">
+      <section class="panel" aria-labelledby="coords-h">
+        <div class="panel-head">
+          <h2 id="coords-h" class="label">Coordinates</h2>
+          <span id="example-tag" class="tag">Example shot from the video</span>
+        </div>
+
+        <div class="field">
+          <label for="you">Your mortar</label>
+          <input type="text" id="you" autocomplete="off" spellcheck="false" placeholder="x98.43, y110.38" aria-describedby="you-read">
+          <p class="read" id="you-read"></p>
+        </div>
+        <label class="check"><input type="checkbox" id="keep"> Remember my mortar position</label>
+
+        <div class="field">
+          <label for="target">Target</label>
+          <input type="text" id="target" autocomplete="off" spellcheck="false" placeholder="x94.53, y109.03" aria-describedby="target-read">
+          <p class="read" id="target-read"></p>
+        </div>
+        <p class="tip">Clicking a box selects its contents, so <kbd>Ctrl</kbd>+<kbd>V</kbd> replaces it. Paste text that has both coordinates and both boxes fill in.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="adj-h">
+        <h2 id="adj-h" class="label">Adjust fire</h2>
+        <p class="note">Missed because of a hill or a rough aim? Mark coordinates where the shell landed and paste them here.</p>
+        <div class="row2">
+          <div class="field">
+            <label for="impact">Where it landed</label>
+            <input type="text" id="impact" autocomplete="off" spellcheck="false" placeholder="x94.70, y109.20" aria-describedby="impact-read">
+            <p class="read" id="impact-read"></p>
+          </div>
+          <div class="field">
+            <label for="used">RNG you fired at</label>
+            <input type="text" id="used" inputmode="decimal" autocomplete="off" placeholder="413">
+          </div>
+        </div>
+        <div id="adj-out" class="adj-out" aria-live="polite"></div>
+      </section>
+
+      <section class="howto" aria-labelledby="how-h">
+        <h2 id="how-h" class="label">Getting coordinates in game</h2>
+        <ol>
+          <li>Open the map and zoom all the way in on your mortar. Right-click it and choose <b>Mark coordinates</b>.</li>
+          <li>The coordinates appear in chat. Press <kbd>Ctrl</kbd>+<kbd>A</kbd>, then <kbd>Ctrl</kbd>+<kbd>C</kbd>, and paste them into Your mortar.</li>
+          <li>Do the same on the target and paste into Target.</li>
+          <li>Middle-click the target on the map to drop a marker. On the mortar, turn until the marker diamond is centered. The compass at the top of the scope should read the heading shown here.</li>
+          <li>Set the RNG scale on the left of the scope to the distance and fire. <kbd>C</kbd> skips the shell camera and <kbd>R</kbd> loads another round (up to three).</li>
+        </ol>
+      </section>
+    </div>
+
+    <section class="panel solution" aria-labelledby="sol-h">
+      <div class="panel-head">
+        <h2 id="sol-h" class="label">Firing solution</h2>
+        <button type="button" class="btn" id="copy">Copy</button>
+      </div>
+
+      <div class="readouts" id="readouts" aria-live="polite">
+        <div class="ro">
+          <span class="k">RNG</span>
+          <span class="v"><span class="n" id="rng">&ndash;</span><span class="u">m</span></span>
+        </div>
+        <div class="ro">
+          <span class="k">Heading</span>
+          <span class="v"><span class="n" id="hdg">&ndash;</span><span class="u" id="card"></span></span>
+        </div>
+      </div>
+
+      <ul class="reach" id="reach"></ul>
+
+      <figure class="board" style="margin:0">
+        <svg id="plot" viewBox="-132 -132 264 264" role="img" aria-label="Plot of the target relative to your mortar, north up"></svg>
+        <figcaption>North up. Your mortar sits in the center.</figcaption>
+      </figure>
+
+      <dl class="work" id="work"></dl>
+    </section>
+  </main>
+
+  <footer>
+    <p>One unit on the map grid is 100 m, so x98 to x99 is 100 m. Distance here is flat map distance. A target well above or below you can land long or short; use Adjust fire to correct.</p>
+    <p>Weapon limits are rough figures from the video. Method from <a href="https://www.youtube.com/watch?v=9X8U-eHCMgI" target="_blank" rel="noopener">SwoleBenji's mortar guide</a>. Fan-made, not affiliated with the developers. <a href="https://github.com/ahmadqwer/wardogs-fire-control" target="_blank" rel="noopener">Source on GitHub</a>.</p>
+  </footer>
+</div>
+
+<script>
+/* core:start */
+const NUM = '(-?\\d+(?:\\.\\d+)?)';
+const PAIR_RE = new RegExp('x\\s*[:=]?\\s*' + NUM + '[\\s,;/]*y\\s*[:=]?\\s*' + NUM, 'gi');
+const UNIT_M = 100; // one map grid unit is 100 m
+const CARD8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const WEAPONS = [
+  { name: 'L81 Mortar', min: 0, edge: 600, max: 700, limit: 'up to ~700 m' },
+  { name: 'Artillery tank', min: 750, edge: 2630, max: 2630, limit: '~750 to 2,630 m' },
+];
+
+function parsePairs(text) {
+  return [...String(text || '').matchAll(PAIR_RE)].map(m => ({ x: +m[1], y: +m[2] }));
+}
+function parseCoord(text) {
+  const s = String(text || '').trim();
+  if (!s) return null;
+  const pairs = parsePairs(s);
+  if (pairs.length) return pairs[0];
+  const nums = s.match(/-?\d+(?:\.\d+)?/g);
+  return nums && nums.length >= 2 ? { x: +nums[0], y: +nums[1] } : null;
+}
+// Map y grows to the north, so the heading is measured clockwise from +y, like the scope compass.
+function solve(from, to) {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const m = Math.hypot(dx, dy) * UNIT_M;
+  let brg = Math.atan2(dx, dy) * 180 / Math.PI;
+  if (brg < 0) brg += 360;
+  return { dx, dy, m, brg, card: CARD8[Math.round(brg / 45) % 8] };
+}
+function wrap180(d) { return ((d % 360) + 540) % 360 - 180; }
+function correction(you, target, impact, rngUsed) {
+  const t = solve(you, target), i = solve(you, impact);
+  const r = t.brg * Math.PI / 180, ux = Math.sin(r), uy = Math.cos(r);
+  const ex = (impact.x - target.x) * UNIT_M, ey = (impact.y - target.y) * UNIT_M;
+  const along = ex * ux + ey * uy;    // + long, - short
+  const lateral = ex * uy - ey * ux;  // + right of the line of fire
+  const turn = wrap180(t.brg - i.brg); // + swing right
+  const newHdg = ((t.brg + turn) % 360 + 360) % 360;
+  return { along, lateral, turn, miss: Math.hypot(ex, ey), newRng: rngUsed + (t.m - i.m), newHdg, card: CARD8[Math.round(newHdg / 45) % 8] };
+}
+function reach(w, m) {
+  if (m < w.min) return { state: 'bad', text: 'Too close' };
+  if (m > w.max) return { state: 'bad', text: 'Out of range' };
+  if (m > w.edge) return { state: 'warn', text: 'Edge of range' };
+  return { state: 'ok', text: 'In range' };
+}
+/* core:end */
+
+const $ = id => document.getElementById(id);
+const EX_YOU = 'x98.43, y110.38', EX_TGT = 'x94.53, y109.03';
+const KEY_KEEP = 'wdfc.keep', KEY_YOU = 'wdfc.you';
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const signed = (n, d = 2) => (n < 0 ? '−' : '+') + Math.abs(n).toFixed(d);
+const roundHdg = b => Math.round(b) % 360;
+const pairText = p => 'x' + p.x + ', y' + p.y;
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+
+let current = null;
+
+function showRead(id, p, optional) {
+  const el = $(id + '-read'), input = $(id);
+  const empty = !input.value.trim();
+  if (p) {
+    el.className = 'read';
+    el.textContent = 'x ' + p.x.toFixed(2) + '   y ' + p.y.toFixed(2);
+    input.removeAttribute('aria-invalid');
+  } else if (empty) {
+    el.className = 'read';
+    el.textContent = optional ? '' : 'Waiting for coordinates';
+    input.removeAttribute('aria-invalid');
+  } else {
+    el.className = 'read err';
+    el.textContent = "Can't read that. It should look like x98.43, y110.38";
+    input.setAttribute('aria-invalid', 'true');
+  }
+}
+
+function svgPlot(t, imp) {
+  const R = 100;
+  let s = '';
+  const far = Math.max(t ? t.m : 0, imp ? imp.m : 0, 100) * 1.12;
+  let step = 1000;
+  for (const c of [50, 100, 200, 250, 500, 1000]) { if (Math.ceil(far / c) <= 4) { step = c; break; } }
+  const rings = Math.max(2, Math.ceil(far / step));
+  const k = R / (rings * step);
+  const labelAng = (t ? t.brg + 145 : 45) * Math.PI / 180;
+
+  s += '<line class="axis" x1="0" y1="-' + R + '" x2="0" y2="' + R + '"/>';
+  s += '<line class="axis" x1="-' + R + '" y1="0" x2="' + R + '" y2="0"/>';
+  for (let i = 1; i <= rings; i++) {
+    const r = i * step * k;
+    s += '<circle class="ring" cx="0" cy="0" r="' + r.toFixed(2) + '"/>';
+    s += '<text class="ring-l" text-anchor="middle" x="' + (Math.sin(labelAng) * r).toFixed(1) + '" y="' + (-Math.cos(labelAng) * r + 3).toFixed(1) + '">' + fmt(i * step) + '</text>';
+  }
+  const lim = 700 * k;
+  if (lim <= R + 0.5) {
+    const a = labelAng + 0.5;
+    s += '<circle class="limit" cx="0" cy="0" r="' + lim.toFixed(2) + '"/>';
+    s += '<text class="limit-l" text-anchor="middle" x="' + (Math.sin(a) * lim).toFixed(1) + '" y="' + (-Math.cos(a) * lim + 3).toFixed(1) + '">L81 max</text>';
+  }
+  for (let d = 0; d < 360; d += 15) {
+    const a = d * Math.PI / 180, len = d % 90 === 0 ? 10 : d % 45 === 0 ? 7 : 4;
+    const r1 = R + 4, r2 = r1 + len;
+    s += '<line class="tick" x1="' + (Math.sin(a) * r1).toFixed(1) + '" y1="' + (-Math.cos(a) * r1).toFixed(1) + '" x2="' + (Math.sin(a) * r2).toFixed(1) + '" y2="' + (-Math.cos(a) * r2).toFixed(1) + '"/>';
+  }
+  [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(([l, d]) => {
+    const a = d * Math.PI / 180, r = R + 23;
+    s += '<text class="card-l' + (l === 'N' ? ' n' : '') + '" text-anchor="middle" x="' + (Math.sin(a) * r).toFixed(1) + '" y="' + (-Math.cos(a) * r + 4).toFixed(1) + '">' + l + '</text>';
+  });
+
+  if (t) {
+    const tx = t.dx * UNIT_M * k, ty = -t.dy * UNIT_M * k;
+    s += '<line class="los" x1="0" y1="0" x2="' + tx.toFixed(2) + '" y2="' + ty.toFixed(2) + '"/>';
+    if (imp) {
+      const ix = imp.dx * UNIT_M * k, iy = -imp.dy * UNIT_M * k, q = 4;
+      s += '<path class="imp" d="M' + (ix - q) + ' ' + (iy - q) + 'L' + (ix + q) + ' ' + (iy + q) + 'M' + (ix - q) + ' ' + (iy + q) + 'L' + (ix + q) + ' ' + (iy - q) + '"/>';
+    }
+    s += '<circle class="tgt" cx="' + tx.toFixed(2) + '" cy="' + ty.toFixed(2) + '" r="6"/>';
+    s += '<circle class="tgt-c" cx="' + tx.toFixed(2) + '" cy="' + ty.toFixed(2) + '" r="1.8"/>';
+  } else {
+    s += '<text class="empty" text-anchor="middle" x="0" y="-12">Paste both coordinates</text>';
+  }
+  s += '<rect class="gun" x="-4" y="-4" width="8" height="8" transform="rotate(45)"/>';
+  $('plot').innerHTML = s;
+}
+
+function renderReach(t) {
+  $('reach').innerHTML = WEAPONS.map(w => {
+    const r = t ? reach(w, t.m) : { state: 'idle', text: 'No target' };
+    return '<li><span><span class="w">' + w.name + '</span><span class="lim">' + w.limit + '</span></span><span class="pill" data-state="' + r.state + '">' + r.text + '</span></li>';
+  }).join('');
+}
+
+function renderAdjust(you, tgt, t) {
+  const out = $('adj-out');
+  const impText = $('impact').value.trim();
+  const imp = parseCoord(impText);
+  showRead('impact', imp, true);
+  $('used').placeholder = t ? String(Math.round(t.m)) : '413';
+  if (!t || !imp) {
+    out.innerHTML = '';
+    return null;
+  }
+  const usedRaw = parseFloat($('used').value.replace(',', '.'));
+  const used = Number.isFinite(usedRaw) ? usedRaw : Math.round(t.m);
+  const c = correction(you, tgt, imp, used);
+  if (c.miss < 5) {
+    out.innerHTML = '<p class="hit">On target (' + fmt(c.miss) + ' m off). Keep RNG ' + fmt(used) + ' m.</p>';
+  } else {
+    const longShort = Math.abs(c.along) < 1 ? 'at the right range' : fmt(Math.abs(c.along)) + ' m ' + (c.along > 0 ? 'long' : 'short');
+    const side = Math.abs(c.lateral) < 1 ? 'on the line' : fmt(Math.abs(c.lateral)) + ' m ' + (c.lateral > 0 ? 'right' : 'left');
+    const turnDeg = Math.round(Math.abs(c.turn));
+    const turnText = turnDeg === 0
+      ? 'Heading is fine. Keep <strong>' + roundHdg(t.brg) + '°</strong>.'
+      : 'Turn ' + turnDeg + '° ' + (c.turn > 0 ? 'right' : 'left') + ' to heading <strong>' + roundHdg(c.newHdg) + '° ' + c.card + '</strong>.';
+    out.innerHTML =
+      '<p>Landed ' + longShort + ', ' + side + '.</p>' +
+      '<p>Set RNG to <strong>' + fmt(c.newRng) + ' m</strong> (you fired at ' + fmt(used) + ').</p>' +
+      '<p>' + turnText + '</p>';
+  }
+  return solve(you, imp);
+}
+
+function render() {
+  const youV = $('you').value, tgtV = $('target').value;
+  const you = parseCoord(youV), tgt = parseCoord(tgtV);
+  showRead('you', you);
+  showRead('target', tgt);
+  $('example-tag').hidden = !(youV.trim() === EX_YOU && tgtV.trim() === EX_TGT);
+
+  const t = you && tgt ? solve(you, tgt) : null;
+  current = t;
+  $('copy').disabled = !t;
+  if (t) {
+    $('rng').textContent = fmt(t.m);
+    const flat = t.m < 1;
+    $('hdg').textContent = flat ? '–' : roundHdg(t.brg) + '°';
+    $('card').textContent = flat ? '' : CARD8[Math.round(roundHdg(t.brg) / 45) % 8];
+    $('work').innerHTML =
+      '<dt>Δx</dt><dd>' + tgt.x.toFixed(2) + ' − ' + you.x.toFixed(2) + ' = ' + signed(t.dx) + '</dd>' +
+      '<dt>Δy</dt><dd>' + tgt.y.toFixed(2) + ' − ' + you.y.toFixed(2) + ' = ' + signed(t.dy) + '</dd>' +
+      '<dt>Distance</dt><dd>√(' + Math.abs(t.dx).toFixed(2) + '² + ' + Math.abs(t.dy).toFixed(2) + '²) × 100 = ' + t.m.toFixed(1) + ' m</dd>' +
+      '<dt>Heading</dt><dd>' + t.brg.toFixed(1) + '° clockwise from north</dd>';
+  } else {
+    $('rng').textContent = '–';
+    $('hdg').textContent = '–';
+    $('card').textContent = '';
+    $('work').innerHTML = '<dt>Formula</dt><dd>√(Δx² + Δy²) × 100 m</dd>';
+  }
+  renderReach(t);
+  const imp = renderAdjust(you, tgt, t);
+  svgPlot(t, imp);
+}
+
+function saveYou() {
+  if ($('keep').checked) store.set(KEY_YOU, $('you').value.trim());
+}
+
+['you', 'target', 'impact'].forEach(id => {
+  const el = $(id);
+  el.addEventListener('focus', () => el.select());
+  el.addEventListener('input', () => { if (id === 'you') saveYou(); render(); });
+  el.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const next = { you: 'target', target: 'impact', impact: 'used' }[id];
+    $(next).focus();
+  });
+  if (id === 'impact') return;
+  el.addEventListener('paste', e => {
+    const text = (e.clipboardData && e.clipboardData.getData('text')) || '';
+    const pairs = parsePairs(text);
+    if (pairs.length >= 2) {
+      e.preventDefault();
+      $('you').value = pairText(pairs[0]);
+      $('target').value = pairText(pairs[1]);
+      saveYou();
+      render();
+      $('target').focus();
+      return;
+    }
+    if (id === 'you') {
+      setTimeout(() => { if (parseCoord(el.value)) $('target').focus(); }, 0);
+    }
+  });
+});
+$('used').addEventListener('input', render);
+$('used').addEventListener('focus', e => e.target.select());
+
+$('keep').addEventListener('change', e => {
+  if (e.target.checked) { store.set(KEY_KEEP, '1'); saveYou(); }
+  else { store.del(KEY_KEEP); store.del(KEY_YOU); }
+});
+
+$('copy').addEventListener('click', () => {
+  if (!current) return;
+  const btn = $('copy');
+  const text = 'RNG ' + fmt(current.m) + ' m, heading ' + roundHdg(current.brg) + '° ' + current.card;
+  const done = label => { btn.textContent = label; setTimeout(() => { btn.textContent = 'Copy'; }, 1600); };
+  const fallback = () => {
+    const sel = window.getSelection(), range = document.createRange();
+    range.selectNodeContents($('readouts'));
+    sel.removeAllRanges(); sel.addRange(range);
+    done('Press Ctrl+C');
+  };
+  try {
+    navigator.clipboard.writeText(text).then(() => done('Copied'), fallback);
+  } catch (e) { fallback(); }
+});
+
+(function init() {
+  const keep = store.get(KEY_KEEP) === '1';
+  const savedYou = store.get(KEY_YOU);
+  $('keep').checked = keep;
+  $('you').value = keep && savedYou ? savedYou : EX_YOU;
+  $('target').value = EX_TGT;
+  render();
+})();
+</script>
+</body>
+</html>
